@@ -1,0 +1,22 @@
+# Routes the ContentDB API paths the Luanti client requests directly (see
+# doc/improvements.md item #2) to the PHP scripts under api/. Rules are
+# added here one endpoint at a time as they're implemented.
+
+RewriteEngine On
+
+# B: escape backreferences before substitution - author/name segments can
+# contain spaces or other non-alphanumeric characters (e.g. "Mr. Rar", the
+# same case that broke unescaped path building in cron/sync.php - see
+# doc/improvements.md item #1) which would otherwise land unescaped in the
+# query string and corrupt it.
+RewriteRule ^api/packages/?$ api/packages.php [QSA,L]
+
+RewriteRule ^api/packages/([^/]+)/([^/]+)/for-client/reviews/?$ api/reviews.php?author=$1&name=$2 [QSA,L,B]
+
+RewriteRule ^api/packages/([^/]+)/([^/]+)/dependencies/?$ api/dependencies.php?author=$1&name=$2 [QSA,L,B]
+
+RewriteRule ^api/packages/([^/]+)/([^/]+)/for-client/?$ api/for-client.php?author=$1&name=$2 [QSA,L,B]
+
+RewriteRule ^api/updates/?$ api/updates.php [QSA,L]
+
+RewriteRule ^packages/([^/]+)/([^/]+)/releases/([0-9]+)/download/?$ download.php?author=$1&name=$2&release=$3 [QSA,L,B]

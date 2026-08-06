@@ -1,0 +1,8 @@
+# Protect only the sensitive top-level files here. Do NOT blanket-deny
+# this whole directory - Apache merges .htaccess by filesystem path, and
+# public/ is a subdirectory of this one, so a blanket deny here also
+# blocks the live site even though the subdomain doc root points at
+# public/. lib/ and cron/ protect themselves via their own .htaccess.
+<FilesMatch "^(config\.php|config\.php\.example|schema\.sql)$">
+    Require all denied
+</FilesMatch>

@@ -1,0 +1,39 @@
+<?php
+// Copy this file to config.php and fill in real values.
+// config.php should NOT be committed to any public repo.
+
+return [
+    'db' => [
+        'host' => 'localhost',
+        'name' => 'cpses_xxxxxxx_contentdb',
+        'user' => 'cpses_xxxxxxx',
+        'pass' => 'CHANGE_ME',
+    ],
+
+    // Base URL of the ContentDB API (no trailing slash).
+    'api_base' => 'https://content.luanti.org/api',
+
+    // Base URL of the ContentDB site, used to resolve relative asset/release URLs.
+    'site_base' => 'https://content.luanti.org',
+
+    // Sent as the User-Agent header on every request to ContentDB.
+    'user_agent' => 'ContentDB-Mirror/1.0 (+https://YOUR-SUBDOMAIN.example.com; contact: YOUR_EMAIL)',
+
+    // Delay in microseconds between successive HTTP requests to ContentDB.
+    // ~300ms keeps us well under a handful of requests/sec.
+    'throttle_usec' => 300000,
+
+    // Absolute filesystem paths where downloaded assets are stored.
+    // These live under public/ so Apache can serve them directly as static
+    // files (images, zip downloads) with no PHP in the way.
+    'storage' => [
+        'screenshots' => __DIR__ . '/public/storage/screenshots',
+        'releases' => __DIR__ . '/public/storage/releases',
+    ],
+    // Paths relative to public/, used when building <img>/download URLs
+    // and when saving local_path values into the database.
+    'storage_web_prefix' => [
+        'screenshots' => 'storage/screenshots',
+        'releases' => 'storage/releases',
+    ],
+];
