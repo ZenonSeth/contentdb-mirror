@@ -153,8 +153,6 @@ function cdb_build_info_hypertext(array $pkg, array $tags, array $supportedGames
         'AS_IS' => 'As-is',
         'DEPRECATED' => 'Deprecated',
     ];
-    $aiDisclosureLabels = ['NONE' => 'None', 'ASSISTED' => 'AI-assisted', 'GENERATED' => 'AI-generated'];
-
     $lines = [];
 
     $lines[] = 'Type: <b>' . cdb_hypertext_escape($typeLabels[$pkg['type']] ?? ucfirst($pkg['type'])) . '</b>';
@@ -193,17 +191,8 @@ function cdb_build_info_hypertext(array $pkg, array $tags, array $supportedGames
         $lines[] = 'Maintenance State: <b>' . cdb_hypertext_escape($devStateLabels[$pkg['dev_state']] ?? $pkg['dev_state']) . '</b>';
     }
 
-    if ($pkg['ai_disclosure']) {
-        $lines[] = 'AI Disclosure: <b>' . cdb_hypertext_escape($aiDisclosureLabels[$pkg['ai_disclosure']] ?? $pkg['ai_disclosure']) . '</b>';
-    }
-
     if ($pkg['cdb_created_at']) {
         $lines[] = 'Added: <b>' . (new DateTime($pkg['cdb_created_at']))->format('Y-m-d\TH:i:s\Z') . '</b>';
-    }
-
-    $maintainers = json_decode($pkg['maintainers'] ?? '[]', true) ?: [];
-    if ($maintainers) {
-        $lines[] = 'Maintainers: <b>' . cdb_hypertext_escape(implode(', ', $maintainers)) . '</b>';
     }
 
     if ($provides) {

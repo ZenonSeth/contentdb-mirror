@@ -12,10 +12,10 @@
 // always treated as false (images rendered as links - see lib/hypertext.php).
 //
 // reviews are always the hardcoded zero-counts, same decision as item #4
-// (reviews are out of scope for this mirror). game_support is passed
-// through verbatim from the blob stored at sync time (upstream's own
-// resolved confidence/candidate data, including upstream URLs for the
-// referenced games) rather than remapped to mirror URLs.
+// (reviews are out of scope for this mirror). ai_disclosure/content_warnings/
+// maintainers/game_support/supports_all_games/translation_url/video_url/
+// video_thumbnail_url have no backing columns (schema/sync.php reverted -
+// see doc/CURRENT_WORK.md) so they're always returned empty/null/false.
 
 require_once __DIR__ . '/../../lib/db.php';
 require_once __DIR__ . '/../../lib/hypertext.php';
@@ -65,11 +65,8 @@ foreach ($dependsStmt->fetchAll() as $dep) {
     }
 }
 
-$gameSupport = json_decode($pkg['game_support'] ?? '[]', true) ?: [];
-$supportedGames = array_map(
-    fn($g) => $g['game'],
-    array_filter($gameSupport, fn($g) => !empty($g['supports']))
-);
+$gameSupport = [];
+$supportedGames = [];
 
 function format_download_size(?string $bytes): ?string
 {
@@ -95,14 +92,14 @@ function iso_datetime(?string $value): ?string
 }
 
 $base = 'https://' . $_SERVER['HTTP_HOST'];
-$maintainers = json_decode($pkg['maintainers'] ?? '[]', true) ?: [];
-$contentWarnings = json_decode($pkg['content_warnings'] ?? '[]', true) ?: [];
+$maintainers = [];
+$contentWarnings = [];
 
 $infoHypertext = cdb_build_info_hypertext($pkg, $tags, $supportedGames, $hardDepends, $optionalDepends, $provides);
 $longDescription = cdb_html_to_hypertext($pkg['long_description_html'] ?? '');
 
 echo json_encode([
-    'ai_disclosure' => $pkg['ai_disclosure'],
+    'ai_disclosure' => null,
     'approved_at' => iso_datetime($pkg['cdb_approved_at']),
     'author' => $pkg['cdb_author'],
     'content_warnings' => $contentWarnings,
@@ -141,16 +138,16 @@ echo json_encode([
     'screenshots' => array_map(fn($p) => ['title' => '', 'url' => $base . '/' . ltrim($p, '/')], $screenshotPaths),
     'short_description' => $pkg['short_description'],
     'state' => $pkg['state'],
-    'supports_all_games' => (bool) $pkg['supports_all_games'],
+    'supports_all_games' => false,
     'tags' => $tags,
     'thumbnail' => $pkg['thumbnail_local_path'] ? $base . '/' . ltrim($pkg['thumbnail_local_path'], '/') : null,
     'title' => $pkg['title'],
-    'translation_url' => $pkg['translation_url'],
+    'translation_url' => null,
     'type' => $pkg['type'],
     'url' => $pkg['release_id'] !== null
         ? $base . '/packages/' . rawurlencode($pkg['cdb_author']) . '/' . rawurlencode($pkg['cdb_name']) . '/releases/' . $pkg['release_id'] . '/download/'
         : null,
-    'video_thumbnail_url' => $pkg['video_thumbnail_url'],
-    'video_url' => $pkg['video_url'],
+    'video_thumbnail_url' => null,
+    'video_url' => null,
     'website' => $pkg['website'],
 ], JSON_UNESCAPED_SLASHES);

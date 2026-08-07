@@ -27,14 +27,6 @@ CREATE TABLE IF NOT EXISTS packages (
     dev_state VARCHAR(32) DEFAULT NULL,
     cdb_created_at DATETIME DEFAULT NULL,
     cdb_approved_at DATETIME DEFAULT NULL,
-    ai_disclosure VARCHAR(32) DEFAULT NULL,
-    content_warnings JSON DEFAULT NULL,
-    maintainers JSON DEFAULT NULL,
-    game_support JSON DEFAULT NULL,            -- upstream's own resolved list, not recomputed by us
-    supports_all_games TINYINT(1) NOT NULL DEFAULT 0,
-    translation_url VARCHAR(512) DEFAULT NULL,
-    video_url VARCHAR(512) DEFAULT NULL,
-    video_thumbnail_url VARCHAR(512) DEFAULT NULL,
     latest_release_id INT UNSIGNED DEFAULT NULL,
     first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_synced_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -45,20 +37,6 @@ CREATE TABLE IF NOT EXISTS packages (
     KEY idx_latest_release (latest_release_id),
     FULLTEXT KEY ft_title_desc (title, short_description)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Migration for existing installs: CREATE TABLE IF NOT EXISTS above is a
--- no-op once the table already exists, so these columns need to be added
--- explicitly. ADD COLUMN IF NOT EXISTS is idempotent (MariaDB 10.0.2+) -
--- safe to re-run this whole file against a live database at any time.
-ALTER TABLE packages
-    ADD COLUMN IF NOT EXISTS ai_disclosure VARCHAR(32) DEFAULT NULL AFTER cdb_approved_at,
-    ADD COLUMN IF NOT EXISTS content_warnings JSON DEFAULT NULL AFTER ai_disclosure,
-    ADD COLUMN IF NOT EXISTS maintainers JSON DEFAULT NULL AFTER content_warnings,
-    ADD COLUMN IF NOT EXISTS game_support JSON DEFAULT NULL AFTER maintainers,
-    ADD COLUMN IF NOT EXISTS supports_all_games TINYINT(1) NOT NULL DEFAULT 0 AFTER game_support,
-    ADD COLUMN IF NOT EXISTS translation_url VARCHAR(512) DEFAULT NULL AFTER supports_all_games,
-    ADD COLUMN IF NOT EXISTS video_url VARCHAR(512) DEFAULT NULL AFTER translation_url,
-    ADD COLUMN IF NOT EXISTS video_thumbnail_url VARCHAR(512) DEFAULT NULL AFTER video_url;
 
 CREATE TABLE IF NOT EXISTS tags (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,

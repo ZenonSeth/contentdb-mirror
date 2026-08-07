@@ -47,8 +47,14 @@ ignored (content flags aren't mirrored).</td>
 </tr>
 <tr>
 <td><code>GET /api/packages/&lt;author&gt;/&lt;name&gt;/for-client/</code><br>Full package info</td>
-<td><span class="badge status-planned">Planned</span></td>
-<td>Not yet implemented.</td>
+<td><span class="badge status-live">Live</span></td>
+<td><code>ai_disclosure</code>, <code>content_warnings</code>,
+<code>maintainers</code>, <code>game_support</code>,
+<code>supports_all_games</code>, <code>translation_url</code>,
+<code>video_url</code>, and <code>video_thumbnail_url</code> aren't
+mirrored - always returns null/empty/false. Everything else (description,
+tags, license, dependencies, screenshots, download info, etc.) is real
+synced data.</td>
 </tr>
 <tr>
 <td><code>GET /api/packages/&lt;author&gt;/&lt;name&gt;/for-client/reviews/</code><br>Package reviews</td>

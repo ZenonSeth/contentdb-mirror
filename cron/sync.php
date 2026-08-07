@@ -55,14 +55,6 @@ function upsert_package(PDO $pdo, array $detail): int
         'dev_state' => $detail['dev_state'] ?? null,
         'cdb_created_at' => parse_cdb_datetime($detail['created_at'] ?? null),
         'cdb_approved_at' => parse_cdb_datetime($detail['approved_at'] ?? null),
-        'ai_disclosure' => $detail['ai_disclosure'] ?? null,
-        'content_warnings' => json_encode($detail['content_warnings'] ?? []),
-        'maintainers' => json_encode($detail['maintainers'] ?? []),
-        'game_support' => json_encode($detail['game_support'] ?? []),
-        'supports_all_games' => !empty($detail['supports_all_games']) ? 1 : 0,
-        'translation_url' => $detail['translation_url'] ?? null,
-        'video_url' => $detail['video_url'] ?? null,
-        'video_thumbnail_url' => $detail['video_thumbnail_url'] ?? null,
         'is_removed_upstream' => 0,
     ];
 
