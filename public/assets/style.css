@@ -138,6 +138,19 @@ footer.site-footer {
     border-radius: 6px;
     margin-bottom: 1rem;
 }
+.download-cta { margin: 1rem 0; }
+.btn-download {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.7rem 1.4rem;
+    border-radius: 6px;
+    background: #2a6f2a;
+    color: #fff;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-align: center;
+}
+.btn-download:hover { background: #235c23; text-decoration: none; }
 .screenshot-gallery {
     display: flex;
     gap: 0.5rem;
@@ -179,16 +192,18 @@ footer.site-footer {
 
 .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
     border-bottom: 2px solid #e0e0e0;
     margin: 1.5rem 0 1rem;
+    overflow-x: auto;
 }
 .tab-btn {
     padding: 0.5rem 1.2rem;
     border: none;
     border-radius: 6px 6px 0 0;
     background: none;
-    font-size: 1.9rem;
+    font-size: 0.9rem;
     cursor: pointer;
     color: #555;
     border-bottom: 3px solid transparent;
@@ -203,6 +218,7 @@ footer.site-footer {
 }
 .tab-panel h3:first-child { margin-top: 0; }
 
+.table-scroll { overflow-x: auto; }
 table.releases { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
 table.releases th, table.releases td {
     text-align: left;
@@ -233,4 +249,6 @@ table.releases th, table.releases td {
     .tab-btn { color: #aaa; }
     .tab-btn:hover { color: #6fcf6f; }
     .tab-btn.active { color: #6fcf6f; background: rgba(111, 207, 111, 0.12); border-bottom-color: #6fcf6f; }
+    .btn-download { background: #2f8f2f; color: #0d150d; }
+    .btn-download:hover { background: #6fcf6f; }
 }

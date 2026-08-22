@@ -62,6 +62,10 @@ layout_header($pkg['title'] . ' - ContentDB Mirror', $pkg['short_description']);
         <img class="thumb-large" src="<?= h($thumb) ?>" alt="<?= h($pkg['title']) ?>">
     <?php endif; ?>
 
+    <?php if ($releases && ($latestDl = asset_url($releases[0]['local_path']))): ?>
+        <p class="download-cta"><a class="btn-download" href="<?= h($latestDl) ?>">Download latest release</a></p>
+    <?php endif; ?>
+
     <p><?= h($pkg['short_description']) ?></p>
 
     <?php if ($tags): ?>
@@ -125,6 +129,7 @@ layout_header($pkg['title'] . ' - ContentDB Mirror', $pkg['short_description']);
 
     <div class="tab-panel" id="tab-download" hidden>
         <?php if ($releases): ?>
+            <div class="table-scroll">
             <table class="releases">
                 <thead>
                     <tr><th>Version</th><th>Date</th><th>Min engine</th><th>Size</th><th>Download</th></tr>
@@ -148,6 +153,7 @@ layout_header($pkg['title'] . ' - ContentDB Mirror', $pkg['short_description']);
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php else: ?>
             <p>No releases mirrored yet.</p>
         <?php endif; ?>

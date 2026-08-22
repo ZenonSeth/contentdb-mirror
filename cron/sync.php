@@ -8,6 +8,19 @@
 require_once __DIR__ . '/../lib/db.php';
 require_once __DIR__ . '/../lib/contentdb_api.php';
 
+// Prefixes every log line with a timestamp + zone abbreviation (whatever
+// PHP's configured default timezone is) so log output is unambiguous
+// without assuming what timezone the host the script runs on is set to.
+function log_line(string $msg): void
+{
+    echo '[' . date('Y-m-d H:i:s T') . '] ' . $msg;
+}
+
+function log_err(string $msg): void
+{
+    fwrite(STDERR, '[' . date('Y-m-d H:i:s T') . '] ' . $msg);
+}
+
 function ext_from_url(string $url, string $fallback): string
 {
     $path = parse_url($url, PHP_URL_PATH) ?: $url;
@@ -33,7 +46,37 @@ function upsert_package(PDO $pdo, array $detail): int
     $stmt->execute([$detail['author'], $detail['name']]);
     $existing = $stmt->fetch();
 
+    // An upstream author/package rename means the (author, name) lookup
+    // above can miss a package we already mirror under its old name, or -
+    // if this package was already re-synced once after the rename before
+    // this row existed - can find a duplicate row created in error. Release
+    // ids are global upstream, so whichever local package_id already owns
+    // the release id now reported as latest is this package's real,
+    // canonical identity: reconcile onto that row (correcting its stored
+    // author/name below) rather than leaving/inserting a second one, which
+    // would collide on that same release id in sync_releases() anyway.
+    if (isset($detail['release'])) {
+        $stmt = $pdo->prepare(
+            'SELECT p.id, p.thumbnail_source_url FROM releases r
+             JOIN packages p ON p.id = r.package_id WHERE r.id = ?'
+        );
+        $stmt->execute([(int) $detail['release']]);
+        $canonical = $stmt->fetch();
+
+        if ($canonical && (!$existing || (int) $canonical['id'] !== (int) $existing['id'])) {
+            if ($existing) {
+                // $existing is a stray duplicate from before the release
+                // history was linked up - drop it (ON DELETE CASCADE takes
+                // its tags/screenshots/releases with it) and keep canonical.
+                $pdo->prepare('DELETE FROM packages WHERE id = ?')->execute([(int) $existing['id']]);
+            }
+            $existing = $canonical;
+        }
+    }
+
     $fields = [
+        'cdb_author' => $detail['author'],
+        'cdb_name' => $detail['name'],
         'type' => $detail['type'],
         'title' => $detail['title'],
         'short_description' => $detail['short_description'] ?? '',
@@ -64,8 +107,6 @@ function upsert_package(PDO $pdo, array $detail): int
         $stmt = $pdo->prepare("UPDATE packages SET $set, last_synced_at = NOW() WHERE id = :id");
         $stmt->execute([...$fields, 'id' => $packageId]);
     } else {
-        $fields['cdb_author'] = $detail['author'];
-        $fields['cdb_name'] = $detail['name'];
         $cols = implode(', ', array_keys($fields));
         $placeholders = implode(', ', array_map(fn($k) => ":$k", array_keys($fields)));
         $stmt = $pdo->prepare("INSERT INTO packages ($cols) VALUES ($placeholders)");
@@ -122,7 +163,7 @@ function sync_screenshots(PDO $pdo, int $packageId, array $urls): void
             cdb_download_file($url, $localPath);
             $insert->execute([$packageId, $url, $webPath, $sortOrder]);
         } catch (CdbApiException $e) {
-            fwrite(STDERR, "  screenshot download failed for package $packageId: {$e->getMessage()}\n");
+            log_err("  screenshot download failed for package $packageId: {$e->getMessage()}\n");
         }
     }
 }
@@ -140,7 +181,7 @@ function sync_thumbnail(PDO $pdo, int $packageId, ?string $url, ?string $previou
         cdb_download_file($url, $localPath);
         $pdo->prepare('UPDATE packages SET thumbnail_local_path = ? WHERE id = ?')->execute([$webPath, $packageId]);
     } catch (CdbApiException $e) {
-        fwrite(STDERR, "  thumbnail download failed for package $packageId: {$e->getMessage()}\n");
+        log_err("  thumbnail download failed for package $packageId: {$e->getMessage()}\n");
     }
 }
 
@@ -179,7 +220,7 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
     try {
         $release = cdb_api_get('/packages/' . rawurlencode($author) . '/' . rawurlencode($name) . '/releases/' . $latestReleaseId . '/');
     } catch (CdbApiException $e) {
-        fwrite(STDERR, "  release metadata fetch failed for package $packageId release $latestReleaseId: {$e->getMessage()}\n");
+        log_err("  release metadata fetch failed for package $packageId release $latestReleaseId: {$e->getMessage()}\n");
         return 0;
     }
     if (!is_array($release)) {
@@ -197,7 +238,7 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
             $localPath = $webPath;
             $downloadedAt = date('Y-m-d H:i:s');
         } catch (CdbApiException $e) {
-            fwrite(STDERR, "  release download failed for package $packageId release $latestReleaseId: {$e->getMessage()}\n");
+            log_err("  release download failed for package $packageId release $latestReleaseId: {$e->getMessage()}\n");
             return 0;
         }
     }
@@ -248,15 +289,15 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
 // fetch leaves the previously-synced table untouched.
 function sync_minetest_versions(PDO $pdo): void
 {
-    echo "Syncing minetest_versions...\n";
+    log_line("Syncing minetest_versions...\n");
     try {
         $versions = cdb_api_get('/minetest_versions/');
     } catch (CdbApiException $e) {
-        fwrite(STDERR, "  minetest_versions fetch failed: {$e->getMessage()}\n");
+        log_err("  minetest_versions fetch failed: {$e->getMessage()}\n");
         return;
     }
     if (!is_array($versions)) {
-        fwrite(STDERR, "  minetest_versions fetch returned unexpected shape\n");
+        log_err("  minetest_versions fetch returned unexpected shape\n");
         return;
     }
 
@@ -268,10 +309,10 @@ function sync_minetest_versions(PDO $pdo): void
             $insert->execute([$v['name'], !empty($v['is_dev']) ? 1 : 0, (int) $v['protocol_version']]);
         }
         $pdo->commit();
-        echo '  stored ' . count($versions) . " versions\n";
+        log_line('  stored ' . count($versions) . " versions\n");
     } catch (PDOException $e) {
         $pdo->rollBack();
-        fwrite(STDERR, "  minetest_versions DB update failed, rolled back: {$e->getMessage()}\n");
+        log_err("  minetest_versions DB update failed, rolled back: {$e->getMessage()}\n");
     }
 }
 
@@ -288,23 +329,23 @@ function sync_minetest_versions(PDO $pdo): void
 // dependency graph can reference packages outside what this mirror stores.
 function sync_dependencies(PDO $pdo): void
 {
-    echo "Syncing dependencies...\n";
+    log_line("Syncing dependencies...\n");
     $items = [];
     try {
         $first = cdb_api_get('/dependencies/?page=1');
         if (!is_array($first) || !isset($first['items'], $first['page_count'])) {
-            fwrite(STDERR, "  dependencies fetch returned unexpected shape\n");
+            log_err("  dependencies fetch returned unexpected shape\n");
             return;
         }
         $items = $first['items'];
         $pageCount = (int) $first['page_count'];
         for ($page = 2; $page <= $pageCount; $page++) {
-            echo "  page $page/$pageCount\n";
+            log_line("  page $page/$pageCount\n");
             $resp = cdb_api_get('/dependencies/?page=' . $page);
             $items = array_merge($items, $resp['items']);
         }
     } catch (CdbApiException $e) {
-        fwrite(STDERR, "  dependencies fetch failed, aborting step: {$e->getMessage()}\n");
+        log_err("  dependencies fetch failed, aborting step: {$e->getMessage()}\n");
         return;
     }
 
@@ -347,11 +388,11 @@ function sync_dependencies(PDO $pdo): void
         }
         $pdo->commit();
 
-        echo '  stored dependency data for ' . (count($items) - $skipped) . ' packages, skipped '
-            . $skipped . " not found locally\n";
+        log_line('  stored dependency data for ' . (count($items) - $skipped) . ' packages, skipped '
+            . $skipped . " not found locally\n");
     } catch (PDOException $e) {
         $pdo->rollBack();
-        fwrite(STDERR, "  dependencies DB update failed, rolled back: {$e->getMessage()}\n");
+        log_err("  dependencies DB update failed, rolled back: {$e->getMessage()}\n");
     }
 }
 
@@ -381,17 +422,24 @@ function process_package(PDO $pdo, string $author, string $name, array &$stats):
             $stats['packages_updated']++;
         }
     } catch (CdbApiException $e) {
-        fwrite(STDERR, "Error processing $author/$name: {$e->getMessage()}\n");
+        log_err("Error processing $author/$name: {$e->getMessage()}\n");
+        $stats['errors_count']++;
+    } catch (Throwable $e) {
+        // Catches things like the release-id primary key collisions seen from
+        // upstream package renames/aliases (a release id already stored under
+        // a different local package_id) - one bad package's data must not
+        // abort the whole run, same as every other per-item step in this file.
+        log_err("Error processing $author/$name: {$e->getMessage()}\n");
         $stats['errors_count']++;
     }
 }
 
 function run_full_sync(PDO $pdo, array &$stats): void
 {
-    echo "Full sync: fetching package list...\n";
+    log_line("Full sync: fetching package list...\n");
     $list = cdb_api_get('/packages/');
     $stats['packages_seen'] = count($list);
-    echo 'Found ' . count($list) . " packages.\n";
+    log_line('Found ' . count($list) . " packages.\n");
 
     // The upstream list has occasionally been observed to repeat the same
     // author/name (e.g. around an author rename/alias); skip repeats so we
@@ -402,10 +450,10 @@ function run_full_sync(PDO $pdo, array &$stats): void
         $author = $entry['author'];
         $name = $entry['name'];
         $key = "$author/$name";
-        printf("[%d/%d] %s/%s\n", $i + 1, count($list), $author, $name);
+        log_line(sprintf("[%d/%d] %s/%s\n", $i + 1, count($list), $author, $name));
 
         if (isset($seen[$key])) {
-            echo "  skipping duplicate list entry for $key\n";
+            log_line("  skipping duplicate list entry for $key\n");
             continue;
         }
         $seen[$key] = true;
@@ -416,7 +464,7 @@ function run_full_sync(PDO $pdo, array &$stats): void
 
 function run_incremental_sync(PDO $pdo, array &$stats): void
 {
-    echo "Incremental sync: fetching update map...\n";
+    log_line("Incremental sync: fetching update map...\n");
     $updates = cdb_api_get('/updates/');
     $stats['packages_seen'] = count($updates);
 
@@ -436,13 +484,13 @@ function run_incremental_sync(PDO $pdo, array &$stats): void
             // against the package detail's own canonical author/name before
             // deciding, since this $key comes from /api/updates/ which can
             // report a stale/aliased author for an existing package.
-            echo "Not found under this key, checking: $key\n";
+            log_line("Not found under this key, checking: $key\n");
             process_package($pdo, $author, $name, $stats);
             continue;
         }
 
         if ((int) $known[$key]['latest_release_id'] !== (int) $releaseId) {
-            echo "Updated package: $key\n";
+            log_line("Updated package: $key\n");
             process_package($pdo, $author, $name, $stats);
         }
     }
@@ -455,7 +503,7 @@ function run_incremental_sync(PDO $pdo, array &$stats): void
             $flagStmt->execute([$row['id']]);
             if ($flagStmt->rowCount() > 0) {
                 $stats['packages_removed_flagged']++;
-                echo "Flagged as removed upstream: $key\n";
+                log_line("Flagged as removed upstream: $key\n");
             }
         }
     }
@@ -477,7 +525,7 @@ function main(): void
 
     $packageCount = (int) $pdo->query('SELECT COUNT(*) FROM packages')->fetchColumn();
     $mode = $packageCount === 0 ? 'full' : 'incremental';
-    echo "Mode: $mode\n";
+    log_line("Mode: $mode\n");
 
     if ($mode === 'full') {
         run_full_sync($pdo, $stats);
@@ -509,7 +557,7 @@ function main(): void
         'notes' => null,
     ]);
 
-    echo "\nDone in {$duration}s. " . json_encode($stats) . "\n";
+    log_line("Done in {$duration}s. " . json_encode($stats) . "\n");
 }
 
 require_once __DIR__ . '/../lib/Parsedown.php';
