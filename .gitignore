@@ -1,3 +1,4 @@
 config.php
 credentials/
 doc/
+cron/sync.log
