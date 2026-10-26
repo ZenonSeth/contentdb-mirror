@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS packages (
     downloads INT UNSIGNED DEFAULT 0,
     state VARCHAR(32) DEFAULT NULL,
     dev_state VARCHAR(32) DEFAULT NULL,
+    ai_disclosure VARCHAR(16) DEFAULT NULL,    -- NONE | ASSISTED | GENERATED
     cdb_created_at DATETIME DEFAULT NULL,
     cdb_approved_at DATETIME DEFAULT NULL,
     latest_release_id INT UNSIGNED DEFAULT NULL,

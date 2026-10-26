@@ -96,6 +96,7 @@ function upsert_package(PDO $pdo, array $detail): int
         'downloads' => $detail['downloads'] ?? 0,
         'state' => $detail['state'] ?? null,
         'dev_state' => $detail['dev_state'] ?? null,
+        'ai_disclosure' => $detail['ai_disclosure'] ?? null,
         'cdb_created_at' => parse_cdb_datetime($detail['created_at'] ?? null),
         'cdb_approved_at' => parse_cdb_datetime($detail['approved_at'] ?? null),
         'is_removed_upstream' => 0,
