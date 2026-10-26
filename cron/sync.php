@@ -137,6 +137,20 @@ function sync_tags(PDO $pdo, int $packageId, array $tagNames): void
     }
 }
 
+// Appends a row to file_hashes for a file just downloaded from $sourceUrl.
+function record_file_hash(PDO $pdo, string $kind, int $packageId, ?int $releaseId, string $sourceUrl, string $fsPath): void
+{
+    $sha256 = hash_file('sha256', $fsPath);
+    if ($sha256 === false) {
+        log_err("  could not hash $fsPath\n");
+        return;
+    }
+    $pdo->prepare(
+        'INSERT INTO file_hashes (kind, package_id, release_id, source_url, sha256, size_bytes, recorded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )->execute([$kind, $packageId, $releaseId, $sourceUrl, $sha256, filesize($fsPath), gmdate('Y-m-d H:i:s')]);
+}
+
 // Downloads any screenshot URLs not already stored locally for this package.
 // Never deletes rows for screenshots that disappeared upstream.
 function sync_screenshots(PDO $pdo, int $packageId, array $urls): void
@@ -163,6 +177,7 @@ function sync_screenshots(PDO $pdo, int $packageId, array $urls): void
         try {
             cdb_download_file($url, $localPath);
             $insert->execute([$packageId, $url, $webPath, $sortOrder]);
+            record_file_hash($pdo, 'screenshot', $packageId, null, $url, $localPath);
         } catch (CdbApiException $e) {
             log_err("  screenshot download failed for package $packageId: {$e->getMessage()}\n");
         }
@@ -269,6 +284,9 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
         'local_path' => $localPath,
         'downloaded_at' => $downloadedAt,
     ]);
+    if ($localPath !== null) {
+        record_file_hash($pdo, 'release', $packageId, $latestReleaseId, $release['url'], $fsPath);
+    }
 
     $pdo->prepare('UPDATE packages SET latest_release_id = ? WHERE id = ?')->execute([$latestReleaseId, $packageId]);
 

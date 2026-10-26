@@ -110,6 +110,23 @@ CREATE TABLE IF NOT EXISTS package_depends (
     CONSTRAINT fk_depends_package FOREIGN KEY (package_id) REFERENCES packages(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Append-only record of every release/screenshot file downloaded, keyed by
+-- upstream source_url (never reused upstream). Rows are never updated or
+-- deleted, so history survives sync_releases() replacing old releases.
+CREATE TABLE IF NOT EXISTS file_hashes (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    kind VARCHAR(16) NOT NULL,                 -- release | screenshot
+    package_id INT UNSIGNED NOT NULL,
+    release_id INT UNSIGNED DEFAULT NULL,
+    source_url VARCHAR(512) NOT NULL,
+    sha256 CHAR(64) NOT NULL,
+    size_bytes BIGINT UNSIGNED NOT NULL,
+    recorded_at DATETIME NOT NULL,             -- UTC
+    PRIMARY KEY (id),
+    KEY idx_source (source_url),
+    KEY idx_package (package_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS sync_log (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     run_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
