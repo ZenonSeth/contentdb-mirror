@@ -21,6 +21,7 @@ function layout_header(string $title, string $description = ''): void
 <a href="/about.php">About</a>
 <a href="/about_api.php">API</a>
 </nav>
+<div class="client-note">This mirror is usable within the Luanti client too, see instructions <a href="/about_api.php">here</a>.</div>
 </header>
 <main>
 <?php
