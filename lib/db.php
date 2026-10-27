@@ -4,7 +4,11 @@ function cdb_mirror_config(): array
 {
     static $config = null;
     if ($config === null) {
-        $path = __DIR__ . '/../config.php';
+        // Prefer config kept outside the web root; fall back to the repo copy.
+        $path = dirname(__DIR__, 3) . '/secrets/contentdb-config.php';
+        if (!file_exists($path)) {
+            $path = __DIR__ . '/../config.php';
+        }
         if (!file_exists($path)) {
             fwrite(STDERR, "Missing config.php - copy config.php.example to config.php and fill it in.\n");
             exit(1);

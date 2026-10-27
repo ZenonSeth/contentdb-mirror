@@ -5,6 +5,11 @@ require_once __DIR__ . '/inc/layout.php';
 
 $pdo = cdb_mirror_db();
 
+// Releases withheld after the Oct 2026 ContentDB incident; their files are moved out of public/.
+$quarantinedReleases = [
+    39631 => 'Temporarily withheld',
+];
+
 $author = $_GET['author'] ?? '';
 $name = $_GET['name'] ?? '';
 
@@ -62,7 +67,9 @@ layout_header($pkg['title'] . ' - ContentDB Mirror', $pkg['short_description']);
         <img class="thumb-large" src="<?= h($thumb) ?>" alt="<?= h($pkg['title']) ?>">
     <?php endif; ?>
 
-    <?php if ($releases && ($latestDl = asset_url($releases[0]['local_path']))): ?>
+    <?php if ($releases && isset($quarantinedReleases[(int) $releases[0]['id']])): ?>
+        <p class="download-cta"><span class="badge removed"><?= h($quarantinedReleases[(int) $releases[0]['id']]) ?></span></p>
+    <?php elseif ($releases && ($latestDl = asset_url($releases[0]['local_path']))): ?>
         <p class="download-cta"><a class="btn-download" href="<?= h($latestDl) ?>">Download latest release</a></p>
     <?php endif; ?>
 
@@ -143,7 +150,9 @@ layout_header($pkg['title'] . ' - ContentDB Mirror', $pkg['short_description']);
                             <td><?= format_bytes($r['size_bytes'] !== null ? (int) $r['size_bytes'] : null) ?></td>
                             <td>
                                 <?php $dl = asset_url($r['local_path']); ?>
-                                <?php if ($dl): ?>
+                                <?php if (isset($quarantinedReleases[(int) $r['id']])): ?>
+                                    withheld
+                                <?php elseif ($dl): ?>
                                     <a href="<?= h($dl) ?>">Download</a>
                                 <?php else: ?>
                                     unavailable
