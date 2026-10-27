@@ -11,6 +11,15 @@ layout_header('Supported API - ContentDB Mirror', 'Which parts of the ContentDB 
 <div class="long-description">
 <h2>Using this mirror from the Luanti client</h2>
 <p>
+In Luanti, go to <strong>Settings &gt; User Interfaces</strong>, find
+<strong>ContentDB URL</strong>, and set it to:
+</p>
+<pre><code>https://contentdb.milcho.org</code></pre>
+<p>The default value is:</p>
+<pre><code>https://content.luanti.org</code></pre>
+
+<h2>Supported endpoints</h2>
+<p>
 This site implements a read-only subset of the
 <a href="https://content.luanti.org/help/api/">ContentDB API</a> - just
 enough of it for the Luanti client itself to browse, install, and check for
@@ -18,14 +27,6 @@ updates to packages using this mirror instead of the real ContentDB. It
 does not implement authenticated endpoints (uploading packages, posting
 reviews, etc.) - this is a mirror, not a publishing platform.
 </p>
-<p>
-To use it: in Luanti, go to <strong>Settings &gt; User Interfaces</strong>,
-find <strong>ContentDB URL</strong>, and set it to
-<code>https://contentdb.milcho.org</code> (default is
-<code>https://content.luanti.org</code>).
-</p>
-
-<h2>Supported endpoints</h2>
 <table class="releases">
 <thead>
 <tr><th>Endpoint</th><th>Status</th><th>Notes</th></tr>
