@@ -15,14 +15,21 @@ header.site-header {
     color: #fff;
     padding: 1rem 1.5rem;
     text-align: center;
-    position: sticky;
-    top: 0;
-    z-index: 10;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 header.site-header a { color: #fff; }
 header.site-header h1 { margin: 0; font-size: 1.3rem; }
 header.site-header .tagline { font-size: 0.85rem; opacity: 0.8; }
+header.site-header .safety-note {
+    display: inline-block;
+    margin-top: 0.6rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 4px;
+    background: #2a7f38;
+    font-size: 1rem;
+    font-weight: 600;
+}
+header.site-header .safety-note a { text-decoration: underline; }
 
 .site-nav {
     display: flex;

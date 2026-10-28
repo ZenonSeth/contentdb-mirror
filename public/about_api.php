@@ -15,8 +15,11 @@ In Luanti, go to <strong>Settings &gt; User Interfaces</strong>, find
 <strong>ContentDB URL</strong>, and set it to:
 </p>
 <pre><code>https://contentdb.milcho.org</code></pre>
-<p>The default value is:</p>
-<pre><code>https://content.luanti.org</code></pre>
+<p>
+Then press the <strong>Set</strong> button.
+<strong>You may need to restart your client for the change to take effect.</strong>
+</p>
+<p>The default value is <code>https://content.luanti.org</code></p>
 
 <h2>Supported endpoints</h2>
 <p>
