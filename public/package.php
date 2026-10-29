@@ -104,7 +104,7 @@ layout_header($pkg['title'] . ' - ContentDB Mirror', $pkg['short_description']);
     <div class="tab-panel" id="tab-description">
         <?php if ($pkg['long_description_html']): ?>
             <div class="long-description">
-                <?= $pkg['long_description_html'] ?>
+                <?= sanitize_description_html($pkg['long_description_html']) ?>
             </div>
         <?php else: ?>
             <p>No description available.</p>
