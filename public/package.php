@@ -8,6 +8,16 @@ $pdo = cdb_mirror_db();
 // Releases withheld after the Oct 2026 ContentDB incident; their files are moved out of public/.
 $quarantinedReleases = [
     39631 => 'Temporarily withheld',
+    39672 => 'Temporarily withheld',
+    35058 => 'Temporarily withheld',
+    39626 => 'Temporarily withheld',
+    39647 => 'Temporarily withheld',
+    39651 => 'Temporarily withheld',
+    39633 => 'Temporarily withheld',
+    39641 => 'Temporarily withheld',
+    39646 => 'Temporarily withheld',
+    39670 => 'Temporarily withheld',
+    39673 => 'Temporarily withheld',
 ];
 
 $author = $_GET['author'] ?? '';
