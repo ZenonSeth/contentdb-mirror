@@ -23,15 +23,27 @@ $orderBy = $sortColumns[$sort] ?? $sortColumns['score'];
 $where = ['1=1'];
 $params = [];
 
-if ($q !== '') {
+$searchText = $q;
+$author = '';
+if (preg_match('/(?:^|\s)author:(\S+)/i', $searchText, $m)) {
+    $author = $m[1];
+}
+$searchText = trim(preg_replace('/(?:^|\s)author:\S*/i', ' ', $searchText));
+
+if ($author !== '') {
+    $where[] = 'p.cdb_author LIKE :author';
+    $params['author'] = addcslashes($author, '%_\\') . '%';
+}
+
+if ($searchText !== '') {
     $boolQuery = implode(' ', array_map(
         fn($word) => '+' . str_replace(['+', '-', '*', '"'], '', $word) . '*',
-        preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY)
+        preg_split('/\s+/', $searchText, -1, PREG_SPLIT_NO_EMPTY)
     ));
     $where[] = '(MATCH(p.title, p.short_description) AGAINST (:boolq IN BOOLEAN MODE)
         OR p.id IN (SELECT pt.package_id FROM package_tags pt JOIN tags t ON t.id = pt.tag_id WHERE t.name LIKE :qlike))';
     $params['boolq'] = $boolQuery;
-    $params['qlike'] = '%' . $q . '%';
+    $params['qlike'] = '%' . $searchText . '%';
 }
 
 if ($type !== '') {
@@ -78,7 +90,7 @@ layout_header('Luanti ContentDB Mirror', 'Search and browse a read-only mirror o
 ?>
 
 <form class="search-bar" method="get" action="/index.php">
-    <input type="text" name="q" placeholder="Search title, description or tags..." value="<?= h($q) ?>">
+    <input type="text" name="q" placeholder="Search title, description or tags (author:name to filter by author)..." value="<?= h($q) ?>">
     <select name="type">
         <option value="">All types</option>
         <option value="mod" <?= $type === 'mod' ? 'selected' : '' ?>>Mods</option>
