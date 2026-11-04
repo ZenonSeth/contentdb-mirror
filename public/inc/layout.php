@@ -2,6 +2,7 @@
 
 function layout_header(string $title, string $description = ''): void
 {
+    $lastSync = last_sync_completed_at();
     ?><!doctype html>
 <html lang="en">
 <head>
@@ -13,9 +14,9 @@ function layout_header(string $title, string $description = ''): void
 </head>
 <body>
 <header class="site-header">
-<a href="/index.php"><h1>Luanti ContentDB Mirror</h1></a>
-<div class="tagline">Unofficial read-only mirror of content.luanti.org</div>
-<div class="safety-note">All files verified safe after the <a href="https://blog.luanti.org/2026/10/27/contentdb-security-incident/" target="_blank" rel="noopener">October 2026 security incident</a></div>
+<h1>Luanti ContentDB Mirror</h1>
+<div class="tagline">Unofficial read-only mirror of content.luanti.org. All files verified safe after the <a href="https://blog.luanti.org/2026/10/27/contentdb-security-incident/" target="_blank" rel="noopener">October 2026 security incident</a>.</div>
+<?php if ($lastSync): ?><div class="tagline">Last synced on <?= h(substr($lastSync, 0, 10)) ?></div><?php endif; ?>
 <nav class="site-nav">
 <a href="/index.php">Home</a>
 <a href="/about.php">About</a>
