@@ -84,6 +84,19 @@ CREATE TABLE IF NOT EXISTS releases (
     CONSTRAINT fk_release_package FOREIGN KEY (package_id) REFERENCES packages(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- The previous release's zip for each package (at most one row per package),
+-- kept when sync_releases() replaces it with a newer release.
+CREATE TABLE IF NOT EXISTS release_backups (
+    package_id INT UNSIGNED NOT NULL,
+    release_id INT UNSIGNED NOT NULL,          -- ContentDB's release id
+    release_date DATETIME DEFAULT NULL,        -- when upstream created the release
+    downloaded_at DATETIME DEFAULT NULL,       -- when we fetched it (server-local time)
+    size_bytes BIGINT UNSIGNED DEFAULT NULL,
+    local_path VARCHAR(512) NOT NULL,
+    PRIMARY KEY (package_id),
+    CONSTRAINT fk_backup_package FOREIGN KEY (package_id) REFERENCES packages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS minetest_versions (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(32) NOT NULL,

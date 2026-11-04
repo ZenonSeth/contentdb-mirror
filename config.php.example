@@ -29,11 +29,13 @@ return [
     'storage' => [
         'screenshots' => __DIR__ . '/public/storage/screenshots',
         'releases' => __DIR__ . '/public/storage/releases',
+        'backups' => __DIR__ . '/public/storage/backups',
     ],
     // Paths relative to public/, used when building <img>/download URLs
     // and when saving local_path values into the database.
     'storage_web_prefix' => [
         'screenshots' => 'storage/screenshots',
         'releases' => 'storage/releases',
+        'backups' => 'storage/backups',
     ],
 ];

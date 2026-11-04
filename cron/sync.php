@@ -201,6 +201,92 @@ function sync_thumbnail(PDO $pdo, int $packageId, ?string $url, ?string $previou
     }
 }
 
+// Deliberately not a CdbApiException so it escapes sync_releases()'s catch and
+// is counted as an error by process_package().
+class ReleaseHashMismatch extends Exception
+{
+}
+
+// Downloads a release zip and checks it against upstream's sha256 (if given).
+// On mismatch, re-downloads once; a second mismatch deletes the file and throws.
+function download_release_verified(string $url, string $fsPath, mixed $expected): void
+{
+    $expected = is_string($expected) && $expected !== '' ? strtolower($expected) : null;
+    if ($expected === null) {
+        log_line("  no upstream sha256 for $url, skipping check\n");
+    }
+    for ($attempt = 1; $attempt <= 2; $attempt++) {
+        cdb_download_file($url, $fsPath);
+        if ($expected === null) {
+            return;
+        }
+        $actual = hash_file('sha256', $fsPath);
+        if ($actual === $expected) {
+            return;
+        }
+        log_err("  sha256 mismatch for $url (attempt $attempt): upstream $expected, got $actual\n");
+        @unlink($fsPath);
+    }
+    throw new ReleaseHashMismatch("sha256 mismatch for $url after retry");
+}
+
+// Moves a replaced release's zip into the backups dir and records it in
+// release_backups (one row per package, so any older backup is replaced).
+// Best-effort: returns false if nothing was backed up, and the caller then
+// just deletes the old file as before.
+function backup_old_release(PDO $pdo, int $packageId, array $old): bool
+{
+    $config = cdb_mirror_config();
+    $prefix = $config['storage_web_prefix']['backups'] ?? null;
+    if ($prefix === null || !$old['local_path']) {
+        return false;
+    }
+    $oldFsPath = __DIR__ . '/../public/' . $old['local_path'];
+    if (!is_file($oldFsPath)) {
+        return false;
+    }
+
+    $downloadedAt = $old['downloaded_at'] ?: date('Y-m-d H:i:s', filemtime($oldFsPath));
+    $stamp = (new DateTime($downloadedAt))->format('Ymd\THis');
+    $ext = pathinfo($old['local_path'], PATHINFO_EXTENSION) ?: 'zip';
+    $webPath = "$prefix/$packageId/$stamp.$ext";
+    $newFsPath = __DIR__ . "/../public/$webPath";
+
+    try {
+        $stmt = $pdo->prepare('SELECT local_path FROM release_backups WHERE package_id = ?');
+        $stmt->execute([$packageId]);
+        $prevPath = $stmt->fetchColumn();
+
+        if (!is_dir(dirname($newFsPath)) && !mkdir(dirname($newFsPath), 0755, true)) {
+            throw new RuntimeException('could not create backup dir');
+        }
+        if (!rename($oldFsPath, $newFsPath)) {
+            throw new RuntimeException('could not move file to backups');
+        }
+    } catch (Throwable $e) {
+        log_err("  backup of release {$old['id']} for package $packageId failed: {$e->getMessage()}\n");
+        return false;
+    }
+
+    try {
+        $pdo->prepare(
+            'INSERT INTO release_backups (package_id, release_id, release_date, downloaded_at, size_bytes, local_path)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE release_id = VALUES(release_id), release_date = VALUES(release_date),
+                downloaded_at = VALUES(downloaded_at), size_bytes = VALUES(size_bytes), local_path = VALUES(local_path)'
+        )->execute([$packageId, $old['id'], $old['release_date'], $downloadedAt, filesize($newFsPath), $webPath]);
+    } catch (Throwable $e) {
+        log_err("  backup row for release {$old['id']} package $packageId failed: {$e->getMessage()}\n");
+        @unlink($newFsPath);
+        return false;
+    }
+
+    if ($prevPath && $prevPath !== $webPath) {
+        @unlink(__DIR__ . '/../public/' . $prevPath);
+    }
+    return true;
+}
+
 // Keeps exactly one release per package - the latest - and owns
 // packages.latest_release_id as the record of what we actually have
 // confirmed stored (NOT a raw copy of upstream's reported release id -
@@ -222,7 +308,7 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
         return 0;
     }
 
-    $stmt = $pdo->prepare('SELECT id, local_path FROM releases WHERE package_id = ?');
+    $stmt = $pdo->prepare('SELECT id, local_path, release_date, downloaded_at FROM releases WHERE package_id = ? ORDER BY id DESC');
     $stmt->execute([$packageId]);
     $existing = $stmt->fetchAll();
 
@@ -250,7 +336,7 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
         $webPath = "{$config['storage_web_prefix']['releases']}/$packageId/$latestReleaseId.$ext";
         $fsPath = __DIR__ . "/../public/$webPath";
         try {
-            cdb_download_file($release['url'], $fsPath);
+            download_release_verified($release['url'], $fsPath, $release['sha256'] ?? null);
             $localPath = $webPath;
             $downloadedAt = date('Y-m-d H:i:s');
         } catch (CdbApiException $e) {
@@ -291,7 +377,12 @@ function sync_releases(PDO $pdo, int $packageId, string $author, string $name, ?
     $pdo->prepare('UPDATE packages SET latest_release_id = ? WHERE id = ?')->execute([$latestReleaseId, $packageId]);
 
     $deleteOld = $pdo->prepare('DELETE FROM releases WHERE id = ?');
+    $backedUp = false;
     foreach ($existing as $row) {
+        // Rows are newest-first; only the newest old release becomes the backup.
+        if (!$backedUp) {
+            $backedUp = backup_old_release($pdo, $packageId, $row);
+        }
         if ($row['local_path']) {
             @unlink(__DIR__ . '/../public/' . $row['local_path']);
         }
@@ -335,6 +426,23 @@ function sync_minetest_versions(PDO $pdo): void
     }
 }
 
+// cdb_api_get() with up to 5 attempts, sleeping 3/5/7/12s between them; rethrows the last error.
+function cdb_api_get_retry(string $path): mixed
+{
+    $delays = [3, 5, 7, 12];
+    for ($attempt = 0; ; $attempt++) {
+        try {
+            return cdb_api_get($path);
+        } catch (CdbApiException $e) {
+            if ($attempt >= count($delays)) {
+                throw $e;
+            }
+            log_err("  $path failed (attempt " . ($attempt + 1) . "), retrying in {$delays[$attempt]}s: {$e->getMessage()}\n");
+            sleep($delays[$attempt]);
+        }
+    }
+}
+
 // Mirrors GET /api/dependencies/ - raw provides/depends/optional_depends for
 // every package reachable in the dependency graph, paged (currently ~34
 // pages). Pages are fetched by page number rather than following
@@ -351,7 +459,7 @@ function sync_dependencies(PDO $pdo): void
     log_line("Syncing dependencies...\n");
     $items = [];
     try {
-        $first = cdb_api_get('/dependencies/?page=1');
+        $first = cdb_api_get_retry('/dependencies/?page=1');
         if (!is_array($first) || !isset($first['items'], $first['page_count'])) {
             log_err("  dependencies fetch returned unexpected shape\n");
             return;
@@ -360,7 +468,7 @@ function sync_dependencies(PDO $pdo): void
         $pageCount = (int) $first['page_count'];
         for ($page = 2; $page <= $pageCount; $page++) {
             log_line("  page $page/$pageCount\n");
-            $resp = cdb_api_get('/dependencies/?page=' . $page);
+            $resp = cdb_api_get_retry('/dependencies/?page=' . $page);
             $items = array_merge($items, $resp['items']);
         }
     } catch (CdbApiException $e) {
@@ -487,18 +595,20 @@ function run_incremental_sync(PDO $pdo, array &$stats): void
     $updates = cdb_api_get('/updates/');
     $stats['packages_seen'] = count($updates);
 
-    $stmt = $pdo->query('SELECT id, cdb_author, cdb_name, latest_release_id FROM packages');
+    $stmt = $pdo->query('SELECT id, cdb_author, cdb_name, latest_release_id, is_removed_upstream FROM packages');
     $known = [];
     foreach ($stmt->fetchAll() as $row) {
-        $known[$row['cdb_author'] . '/' . $row['cdb_name']] = $row;
+        // Lowercased: the DB collation is case-insensitive, so author/name casing changes upstream must still match.
+        $known[strtolower($row['cdb_author'] . '/' . $row['cdb_name'])] = $row;
     }
 
     $seenKeys = [];
     foreach ($updates as $key => $releaseId) {
-        $seenKeys[$key] = true;
+        $lkey = strtolower($key);
+        $seenKeys[$lkey] = true;
         [$author, $name] = explode('/', $key, 2);
 
-        if (!isset($known[$key])) {
+        if (!isset($known[$lkey])) {
             // Not necessarily actually new - process_package() re-checks
             // against the package detail's own canonical author/name before
             // deciding, since this $key comes from /api/updates/ which can
@@ -508,7 +618,7 @@ function run_incremental_sync(PDO $pdo, array &$stats): void
             continue;
         }
 
-        if ((int) $known[$key]['latest_release_id'] !== (int) $releaseId) {
+        if ((int) $known[$lkey]['latest_release_id'] !== (int) $releaseId || $known[$lkey]['is_removed_upstream']) {
             log_line("Updated package: $key\n");
             process_package($pdo, $author, $name, $stats);
         }
@@ -517,12 +627,12 @@ function run_incremental_sync(PDO $pdo, array &$stats): void
     // Packages we have locally but that no longer appear upstream: flag,
     // never delete.
     $flagStmt = $pdo->prepare('UPDATE packages SET is_removed_upstream = 1 WHERE id = ? AND is_removed_upstream = 0');
-    foreach ($known as $key => $row) {
-        if (!isset($seenKeys[$key])) {
+    foreach ($known as $lkey => $row) {
+        if (!isset($seenKeys[$lkey])) {
             $flagStmt->execute([$row['id']]);
             if ($flagStmt->rowCount() > 0) {
                 $stats['packages_removed_flagged']++;
-                log_line("Flagged as removed upstream: $key\n");
+                log_line("Flagged as removed upstream: {$row['cdb_author']}/{$row['cdb_name']}\n");
             }
         }
     }
